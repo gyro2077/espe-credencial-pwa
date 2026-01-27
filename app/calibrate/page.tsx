@@ -1,0 +1,118 @@
+"use client";
+
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { loadPdf, saveCredentialCrop, savePhotoRect } from "@/lib/storage";
+import { renderPdfPageToCanvas } from "@/lib/pdf";
+import { DEFAULT_CREDENTIAL_CROP, DEFAULT_PHOTO_RECT } from "@/lib/constants";
+import DraggableCrop from "@/components/DraggableCrop";
+
+export default function CalibratePage() {
+    const router = useRouter();
+    const [step, setStep] = useState<"credential" | "photo">("credential");
+    const [pdf, setPdf] = useState<File | null>(null);
+    const [imgSrc, setImgSrc] = useState<string | null>(null);
+    const [croppedBase64, setCroppedBase64] = useState<string | null>(null);
+
+    // State for DraggableCrop (Normalized 0..1)
+    const [cropRect, setCropRect] = useState(DEFAULT_CREDENTIAL_CROP);
+
+    // Load PDF for Step 1
+    useEffect(() => {
+        (async () => {
+            const p = await loadPdf();
+            if (!p) return router.push("/upload");
+            setPdf(p);
+
+            try {
+                const { canvas } = await renderPdfPageToCanvas(p, 1, 1.5);
+                setImgSrc(canvas.toDataURL("image/jpeg"));
+            } catch (e) {
+                console.error("Error loading PDF", e);
+            }
+        })();
+    }, [router]);
+
+    // Step 1: Confirm Credential Crop
+    const handleConfirmCredential = async () => {
+        if (!imgSrc) return;
+
+        // Save Credential Crop
+        await saveCredentialCrop(cropRect);
+
+        // Generate cropped image for Step 2
+        try {
+            const img = new Image();
+            img.src = imgSrc;
+            await new Promise((resolve) => (img.onload = resolve));
+
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+
+            // Map normalized rect to pixel coordinates
+            const sx = cropRect.x * img.naturalWidth;
+            const sy = cropRect.y * img.naturalHeight;
+            const sWidth = cropRect.w * img.naturalWidth;
+            const sHeight = cropRect.h * img.naturalHeight;
+
+            canvas.width = sWidth;
+            canvas.height = sHeight;
+
+            ctx?.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+
+            setCroppedBase64(canvas.toDataURL("image/jpeg"));
+
+            // Reset for Step 2
+            setStep("photo");
+            setCropRect(DEFAULT_PHOTO_RECT); // Start with default photo position
+        } catch (e) {
+            console.error("Error generating crop preview", e);
+        }
+    };
+
+    // Step 2: Confirm Photo Slot
+    const handleConfirmPhoto = async () => {
+        await savePhotoRect(cropRect);
+        router.push("/edit");
+    };
+
+    const isStep1 = step === "credential";
+    const currentSrc = isStep1 ? imgSrc : croppedBase64;
+
+    if (!currentSrc) return <div className="min-h-screen flex items-center justify-center text-white">Cargando...</div>;
+
+    return (
+        <main className="fixed inset-0 bg-black flex flex-col z-50">
+            <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/80 to-transparent text-white pointer-events-none">
+                <h1 className="text-lg font-bold">
+                    {isStep1 ? "Paso 1: Detectar Credencial" : "Paso 2: Área de Foto"}
+                </h1>
+                <p className="text-sm opacity-90">
+                    {isStep1
+                        ? "Mueve los 4 puntos para cubrir TU credencial."
+                        : "Mueve los 4 puntos para marcar donde va la FOTO."}
+                </p>
+            </div>
+
+            <div className="relative flex-1 bg-slate-900 overflow-hidden flex items-center justify-center">
+                {/* Container specifically sized to hold the component */}
+                <div className="relative w-full h-full max-w-2xl">
+                    <DraggableCrop
+                        src={currentSrc}
+                        rect={cropRect}
+                        onChange={setCropRect}
+                    />
+                </div>
+            </div>
+
+            <div className="p-4 bg-white flex flex-col gap-3">
+                <button
+                    onClick={isStep1 ? handleConfirmCredential : handleConfirmPhoto}
+                    className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl active:scale-95 transition shadow-lg text-lg"
+                >
+                    {isStep1 ? "Siguiente Paso →" : "Finalizar"}
+                </button>
+            </div>
+        </main>
+    );
+}
