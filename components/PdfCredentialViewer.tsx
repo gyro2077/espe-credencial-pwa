@@ -101,9 +101,11 @@ export default function PdfCredentialViewer({ pdfFile, overlayBlob, mode = "edit
         <div ref={containerRef} className="w-full max-w-md">
             <div
                 className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg backdrop-blur-sm"
-                // Force aspect ratio of the container to match the CROP's aspect ratio
+                // Force aspect ratio of the container to match the REAL cropped area
                 style={{
-                    aspectRatio: `${crop.w} / ${crop.h}`
+                    // We must account for the aspect ratio of the original PDF page (dims.w / dims.h)
+                    // Visual Aspect = (crop.w * dims.w) / (crop.h * dims.h)
+                    aspectRatio: `${(crop.w * dims.w) / (crop.h * dims.h)}`
                 }}
             >
                 {/* The PDF Image is positioned absolutely to "show through" the window defined by the container */}
@@ -145,6 +147,7 @@ export default function PdfCredentialViewer({ pdfFile, overlayBlob, mode = "edit
                                 top: `${photo.y * 100}%`,
                                 width: `${photo.w * 100}%`,
                                 height: `${photo.h * 100}%`,
+                                objectFit: "cover", // Force cover to prevent squashing
                                 border: mode === "edit" ? "2px solid rgba(17,82,212,0.35)" : "none",
                             }}
                         />

@@ -34,10 +34,8 @@ export async function renderPdfPageToCanvas(file: File, pageNumber = 1, scale = 
     // Usamos URL-based worker setup que es compatible con Webpack 5 / Next.js
     // Solo configurarlo una vez si es necesario, o cada vez (es un global estático)
     if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-            "pdfjs-dist/build/pdf.worker.min.mjs",
-            import.meta.url
-        ).toString();
+        // Use static path instead of webpack magic to avoid __webpack_require__.U error
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
     }
 
     const arrayBuffer = await file.arrayBuffer();

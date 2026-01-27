@@ -11,7 +11,7 @@ type Props = {
     aspect?: number;
 };
 
-export default function DraggableCrop({ src, rect, onChange }: Props) {
+export default function DraggableCrop({ src, rect, onChange, aspect }: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [imgDims, setImgDims] = useState<{ w: number; h: number } | null>(null);
 
@@ -69,25 +69,21 @@ export default function DraggableCrop({ src, rect, onChange }: Props) {
                 newRect.y = Math.min(1 - newRect.h, Math.max(0, startRect.y + dy));
             } else {
                 // Resizing Corners
-                if (dragging === "tl") {
-                    newRect.x = Math.min(startRect.x + startRect.w - 0.05, Math.max(0, startRect.x + dx));
-                    newRect.y = Math.min(startRect.y + startRect.h - 0.05, Math.max(0, startRect.y + dy));
-                    newRect.w = startRect.w + (startRect.x - newRect.x);
-                    newRect.h = startRect.h + (startRect.y - newRect.y);
+                // If aspect is provided, we lock the ratio.
+                // Ratio calculation: (w * imgW) / (h * imgH) = aspect
+                // => w / h = aspect * (imgH / imgW) = ratioConf
+                let ratioConf = 0;
+                if (aspect && imgDims) {
+                    ratioConf = aspect * (imgDims.h / imgDims.w);
                 }
-                if (dragging === "tr") {
-                    newRect.y = Math.min(startRect.y + startRect.h - 0.05, Math.max(0, startRect.y + dy));
-                    newRect.w = Math.min(1 - startRect.x, Math.max(0.05, startRect.w + dx));
-                    newRect.h = startRect.h + (startRect.y - newRect.y);
-                }
-                if (dragging === "bl") {
-                    newRect.x = Math.min(startRect.x + startRect.w - 0.05, Math.max(0, startRect.x + dx));
-                    newRect.w = startRect.w + (startRect.x - newRect.x);
-                    newRect.h = Math.min(1 - startRect.y, Math.max(0.05, startRect.h + dy));
-                }
-                if (dragging === "br") {
-                    newRect.w = Math.min(1 - startRect.x, Math.max(0.05, startRect.w + dx));
-                    newRect.h = Math.min(1 - startRect.y, Math.max(0.05, startRect.h + dy));
+
+                if (activeAspectLock(dragging)) {
+                    // Free resizing if no aspect
+                    if (!aspect) {
+                        applyFreeResize(dragging, newRect, startRect, dx, dy);
+                    } else {
+                        applyLockedResize(dragging, newRect, startRect, dx, dy, ratioConf);
+                    }
                 }
             }
 
@@ -107,7 +103,92 @@ export default function DraggableCrop({ src, rect, onChange }: Props) {
             window.removeEventListener("touchmove", onMove);
             window.removeEventListener("touchend", onEnd);
         };
-    }, [dragging, startPos, startRect, onChange]);
+    }, [dragging, startPos, startRect, onChange, aspect, imgDims]);
+
+    function activeAspectLock(dragType: string) {
+        return ["tl", "tr", "bl", "br"].includes(dragType);
+    }
+
+    // Helper for free resize
+    function applyFreeResize(type: string, r: Rect, start: Rect, dx: number, dy: number) {
+        if (type === "tl") {
+            r.x = Math.min(start.x + start.w - 0.05, Math.max(0, start.x + dx));
+            r.y = Math.min(start.y + start.h - 0.05, Math.max(0, start.y + dy));
+            r.w = start.w + (start.x - r.x);
+            r.h = start.h + (start.y - r.y);
+        }
+        if (type === "tr") {
+            r.y = Math.min(start.y + start.h - 0.05, Math.max(0, start.y + dy));
+            r.w = Math.min(1 - start.x, Math.max(0.05, start.w + dx));
+            r.h = start.h + (start.y - r.y);
+        }
+        if (type === "bl") {
+            r.x = Math.min(start.x + start.w - 0.05, Math.max(0, start.x + dx));
+            r.w = start.w + (start.x - r.x);
+            r.h = Math.min(1 - start.y, Math.max(0.05, start.h + dy));
+        }
+        if (type === "br") {
+            r.w = Math.min(1 - start.x, Math.max(0.05, start.w + dx));
+            r.h = Math.min(1 - start.y, Math.max(0.05, start.h + dy));
+        }
+    }
+
+    // Helper for locked resize
+    function applyLockedResize(type: string, r: Rect, start: Rect, dx: number, dy: number, ratio: number) {
+        // We take the dominant delta (larger movement) to drive the resize
+        // For simplicity, let's drive by Width (dx) and adjust Height
+
+        // This is a simplified locked resize implementation.
+        // realW / realH = aspect
+        // normW * imgW / (normH * imgH) = aspect
+        // normH = normW * (imgW / imgH) / aspect = normW / ratio
+
+        let newW = start.w;
+        let newH = start.h;
+
+        // Calculate proposed width change
+        if (type.includes("l")) {
+            // Dragging Left
+            // new x = start.x + dx
+            // new w = start.w - dx
+            // We clamp dx
+            const maxDx = start.w - 0.05; // min width
+            const minDx = -start.x; // max width (hit 0)
+            const safeDx = Math.max(minDx, Math.min(maxDx, dx));
+            newW = start.w - safeDx;
+            newH = newW / ratio;
+
+            r.x = start.x + (start.w - newW);
+            r.w = newW;
+
+            // Adjust y to center? No, corner specific.
+            // If TL, we move Y. If BL, we don't move Y (just H changes).
+            if (type === "tl") {
+                r.y = start.y + (start.h - newH);
+                r.h = newH;
+            } else { // bl
+                r.h = newH;
+            }
+        } else {
+            // Dragging Right
+            // new w = start.w + dx
+            const maxDx = (1 - start.x) - start.w;
+            const minDx = 0.05 - start.w;
+            const safeDx = Math.max(minDx, Math.min(maxDx, dx));
+            newW = start.w + safeDx;
+            newH = newW / ratio;
+
+            r.w = newW;
+
+            // TR moves Y. BR doesn't.
+            if (type === "tr") {
+                r.y = start.y + (start.h - newH);
+                r.h = newH;
+            } else { // br
+                r.h = newH;
+            }
+        }
+    }
 
 
     return (

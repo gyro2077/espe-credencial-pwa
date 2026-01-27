@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 // import PdfCredentialViewer from "@/components/PdfCredentialViewer"; // Static import removed
 const PdfCredentialViewer = dynamic(() => import("@/components/PdfCredentialViewer"), { ssr: false });
 import PhotoCropModal from "@/components/PhotoCropModal";
-import { loadOverlayPhoto, loadPdf, saveOverlayPhoto } from "@/lib/storage";
+import { loadOverlayPhoto, loadPdf, saveOverlayPhoto, loadCredentialCrop, loadPhotoRect } from "@/lib/storage";
 
 export default function EditPage() {
     const router = useRouter();
@@ -14,12 +14,37 @@ export default function EditPage() {
     const [overlay, setOverlay] = useState<Blob | undefined>(undefined);
     const [modalSrc, setModalSrc] = useState<string | null>(null);
 
+    const [targetAspect, setTargetAspect] = useState<number>(3 / 4);
+
     useEffect(() => {
         (async () => {
             const p = await loadPdf();
             if (!p) return router.push("/upload");
             setPdf(p);
             setOverlay(await loadOverlayPhoto());
+
+            // Calculate Aspect Ratio from Calibration Data
+            try {
+                // We need the PDF page dimensions to translate normalized coords to real aspect ratio
+                // We can use the helper to get dimensions at scale=1
+                const { renderPdfPageToCanvas } = await import("@/lib/pdf");
+                const { width, height } = await renderPdfPageToCanvas(p, 1, 1);
+
+                const crop = await loadCredentialCrop() || { x: 0, y: 0, w: 1, h: 1 };
+                const photo = await loadPhotoRect() || { x: 0, y: 0, w: 1, h: 1 };
+
+                // Real dimensions of the cropped credential
+                const credW = width * crop.w;
+                const credH = height * crop.h;
+
+                // Real dimensions of the photo slot
+                const slotW = credW * photo.w;
+                const slotH = credH * photo.h;
+
+                setTargetAspect(slotW / slotH);
+            } catch (e) {
+                console.error("Error calculating aspect ratio", e);
+            }
         })();
     }, [router]);
 
@@ -61,6 +86,7 @@ export default function EditPage() {
             {modalSrc && (
                 <PhotoCropModal
                     imageSrc={modalSrc}
+                    aspect={targetAspect}
                     onClose={() => {
                         URL.revokeObjectURL(modalSrc);
                         setModalSrc(null);
