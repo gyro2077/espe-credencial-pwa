@@ -1,4 +1,5 @@
 import { get, set, del } from "idb-keyval";
+import { LS_KEYS } from "./storageKeys";
 
 export type OverlayTransform = {
     // Normalizado 0..1 respecto a la zona recortada (credencial)
@@ -6,15 +7,6 @@ export type OverlayTransform = {
     y: number;
     scale: number;
 };
-
-const KEYS = {
-    pdf: "espe_pdf_blob",
-    pdfName: "espe_pdf_name",
-    overlayPhoto: "espe_overlay_photo_blob",
-    overlayTransform: "espe_overlay_transform",
-    credentialCrop: "espe_credential_crop",
-    photoRect: "espe_photo_rect",
-} as const;
 
 export type Rect = {
     x: number;
@@ -27,38 +19,38 @@ export type CredentialCrop = Rect;
 export type PhotoRect = Rect;
 
 export async function savePdf(file: File) {
-    await set(KEYS.pdf, file);
-    await set(KEYS.pdfName, file.name);
+    await set(LS_KEYS.PDF_FILE, file);
+    await set(LS_KEYS.PDF_NAME, file.name);
 }
 
 export async function loadPdf(): Promise<File | undefined> {
-    return (await get(KEYS.pdf)) as File | undefined;
+    return (await get(LS_KEYS.PDF_FILE)) as File | undefined;
 }
 
 export async function saveCredentialCrop(crop: CredentialCrop) {
-    await set(KEYS.credentialCrop, crop);
+    await set(LS_KEYS.CRED_CROP, crop);
 }
 
 export async function loadCredentialCrop(): Promise<CredentialCrop | undefined> {
-    return (await get(KEYS.credentialCrop)) as CredentialCrop | undefined;
+    return (await get(LS_KEYS.CRED_CROP)) as CredentialCrop | undefined;
 }
 
 export async function savePhotoRect(rect: PhotoRect) {
-    await set(KEYS.photoRect, rect);
+    await set(LS_KEYS.PHOTO_RECT, rect);
 }
 
 export async function loadPhotoRect(): Promise<PhotoRect | undefined> {
-    return (await get(KEYS.photoRect)) as PhotoRect | undefined;
+    return (await get(LS_KEYS.PHOTO_RECT)) as PhotoRect | undefined;
 }
 
 // Store as ArrayBuffer to ensure persistence (avoiding potential Blob handle issues)
 export async function saveOverlayPhoto(blob: Blob) {
     const buffer = await blob.arrayBuffer();
-    await set(KEYS.overlayPhoto, { buffer, type: blob.type });
+    await set(LS_KEYS.OVERLAY_PHOTO, { buffer, type: blob.type });
 }
 
 export async function loadOverlayPhoto(): Promise<Blob | undefined> {
-    const data = await get(KEYS.overlayPhoto);
+    const data = await get(LS_KEYS.OVERLAY_PHOTO);
     if (!data) return undefined;
 
     // Backward compatibility: If it was stored as a Blob directly
@@ -73,18 +65,27 @@ export async function loadOverlayPhoto(): Promise<Blob | undefined> {
 }
 
 export async function saveOverlayTransform(t: OverlayTransform) {
-    await set(KEYS.overlayTransform, t);
+    await set(LS_KEYS.OVERLAY_TRANSFORM, t);
 }
 
 export async function loadOverlayTransform(): Promise<OverlayTransform | undefined> {
-    return (await get(KEYS.overlayTransform)) as OverlayTransform | undefined;
+    return (await get(LS_KEYS.OVERLAY_TRANSFORM)) as OverlayTransform | undefined;
+}
+
+export async function resetWorkspace() {
+    await del(LS_KEYS.CRED_CROP);
+    await del(LS_KEYS.PHOTO_RECT);
+    await del(LS_KEYS.OVERLAY_PHOTO);
+    await del(LS_KEYS.OVERLAY_TRANSFORM);
+    // Note: We intentionally do NOT clear the PDF here if we only want to reset the work ON the PDF.
+    // But per requirements, "uploading NEW PDF" calls this.
+    // If we want a full wipe including PDF, we'd delete PDF keys too.
+    // But usually resetWorkspace implies cleaning the "edit state".
+    // The upload function will overwrite the PDF key anyway.
 }
 
 export async function clearAll() {
-    await del(KEYS.pdf);
-    await del(KEYS.pdfName);
-    await del(KEYS.overlayPhoto);
-    await del(KEYS.overlayTransform);
-    await del(KEYS.credentialCrop);
-    await del(KEYS.photoRect);
+    await del(LS_KEYS.PDF_FILE);
+    await del(LS_KEYS.PDF_NAME);
+    await resetWorkspace();
 }

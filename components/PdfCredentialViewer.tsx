@@ -8,7 +8,7 @@ import { loadCredentialCrop, loadPhotoRect, loadOverlayPhoto, type CredentialCro
 type Props = {
     pdfFile: File;
     overlayBlob?: Blob;
-    mode?: "edit" | "card";
+    mode?: "edit" | "card" | "preview";
 };
 
 export default function PdfCredentialViewer({ pdfFile, overlayBlob, mode = "edit" }: Props) {

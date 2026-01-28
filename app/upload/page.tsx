@@ -15,6 +15,8 @@ export default function UploadPage() {
         if (error) return setErr(error);
 
         try {
+            const { resetWorkspace } = await import("@/lib/storage");
+            await resetWorkspace();
             await savePdf(file);
             router.push("/calibrate");
         } catch (e) {
