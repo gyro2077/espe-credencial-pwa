@@ -163,7 +163,7 @@ export default function EditPage() {
 
                 <button
                     className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition"
-                    onClick={() => router.push("/card")}
+                    onClick={() => router.push("/view")}
                 >
                     Guardar y continuar →
                 </button>
