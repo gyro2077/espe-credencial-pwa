@@ -1,3 +1,5 @@
+"use client";
+
 // Offline fallback page for when network is unavailable
 export default function OfflinePage() {
     return (
