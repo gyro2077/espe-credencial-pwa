@@ -22,9 +22,10 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
+  output: 'export',  // Generate static HTML - TRUE offline PWA
   transpilePackages: ["pdfjs-dist"],
   images: {
-    // No external domains needed for local-first
+    unoptimized: true,  // Required for static export
   },
   async headers() {
     return [
