@@ -7,6 +7,18 @@ const withPWA = withPWAInit({
   disable: false,  // Enable PWA in all environments (dev + prod)
   register: true,
   skipWaiting: true,
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
 });
 
 const nextConfig: NextConfig = {
