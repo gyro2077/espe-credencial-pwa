@@ -1,15 +1,30 @@
 {
-    "name": "Credencial ESPE PWA",
-    "short_name": "Credencial",
-    "start_url": "/card",
+    "name": "Credencial ESPE - Universidad de las Fuerzas Armadas",
+    "short_name": "Credencial ESPE",
+    "description": "Credencial digital de la Universidad de las Fuerzas Armadas ESPE. Lleva tu credencial universitaria en tu celular, funciona sin internet.",
+    "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
-    "theme_color": "#000000",
+    "theme_color": "#1e3a8a",
+    "orientation": "portrait",
+    "scope": "/",
     "icons": [
         {
-            "src": "/favicon.ico",
-            "sizes": "64x64 32x32 24x24 16x16",
-            "type": "image/x-icon"
+            "src": "/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
         }
-    ]
+    ],
+    "categories": [
+        "education",
+        "utilities"
+    ],
+    "lang": "es-EC"
 }

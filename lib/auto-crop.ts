@@ -163,12 +163,9 @@ export type DetectionResult = {
  */
 export async function detectCredentialRect(file: File): Promise<DetectionResult> {
     try {
-        // TEMPORALMENTE DESHABILITADO: User template priority
-        // Problema: localStorage cachea valores viejos y nunca usa cambios del código
-        // Solución: Forzar SIEMPRE auto-detect hasta encontrar posición correcta
-
-        /*
         // Prioridad 1: Template del usuario (máxima precisión)
+        // RE-HABILITADO: Ahora que los templates por defecto funcionan bien,
+        // el usuario puede calibrar manualmente para ajuste perfecto
         const userTemplate = loadUserTemplate();
         if (userTemplate) {
             return {
@@ -177,9 +174,8 @@ export async function detectCredentialRect(file: File): Promise<DetectionResult>
                 confidence: 1.0  // 100% confianza (usuario lo calibró manualmente)
             };
         }
-        */
 
-        // FORZANDO: Detectar formato y usar template específico
+        // Prioridad 2: Detectar formato y usar template específico
         const arrayBuffer = await file.arrayBuffer();
         const doc = await PDFDocument.load(arrayBuffer);
         const page = doc.getPage(0);
@@ -191,7 +187,6 @@ export async function detectCredentialRect(file: File): Promise<DetectionResult>
 
         console.log(`📄 PDF Format detected: ${format} (${width}x${height})`);
         console.log(`📏 Using template:`, rect);
-        console.log(`⚠️ USER TEMPLATE Loading DISABLED - Using code template`);
 
         // Estimar confianza basada en aspect ratio
         // Credenciales típicas tienen aspect ratio w/h ≈ 0.57
