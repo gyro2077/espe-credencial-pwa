@@ -6,7 +6,8 @@ import { loadPdf, saveCredentialCrop, savePhotoRect } from "@/lib/storage";
 import { renderPdfPageToCanvas } from "@/lib/pdf";
 import { DEFAULT_CREDENTIAL_CROP, DEFAULT_PHOTO_RECT } from "@/lib/constants";
 import DraggableCrop from "@/components/DraggableCrop";
-import { detectCredentialRect } from "@/lib/auto-crop";
+import { detectCredentialRect, saveUserTemplate, clearUserTemplate, DEFAULT_TEMPLATE } from "@/lib/auto-crop";
+import "@/lib/template-version"; // Auto-clear old templates
 
 export default function CalibratePage() {
     const router = useRouter();
@@ -19,6 +20,8 @@ export default function CalibratePage() {
     const [cropRect, setCropRect] = useState(DEFAULT_CREDENTIAL_CROP);
     // Persist the auto-detected rect for "Restablecer" functionality
     const [autoRect, setAutoRect] = useState(DEFAULT_CREDENTIAL_CROP);
+    // Confidence level from auto-detection
+    const [confidence, setConfidence] = useState(0.8);
 
     // Helper to generate preview
     const generatePreview = async (src: string, rect: typeof DEFAULT_CREDENTIAL_CROP) => {
@@ -56,18 +59,15 @@ export default function CalibratePage() {
                 const fullPageImg = canvas.toDataURL("image/jpeg");
                 setImgSrc(fullPageImg);
 
-                // 2. Detect Crop (or use Default)
-                // Only run detection if we are initializing (step === "credential" or "verify_autocrop" but only once)
-                // Actually, just run it if we don't have a crop verification yes.
+                // 2. Detect Crop (auto-detect with confidence)
+                const detection = await detectCredentialRect(p);
+                const initialRect = detection.rect;
 
-                let initialRect = DEFAULT_CREDENTIAL_CROP;
-                const detected = await detectCredentialRect(p);
-                if (detected) {
-                    initialRect = detected;
-                }
+                console.log("🔍 Detection:", detection.source, "Confidence:", (detection.confidence * 100).toFixed(0) + "%");
 
                 setAutoRect(initialRect);
                 setCropRect(initialRect);
+                setConfidence(detection.confidence);
 
                 // 3. Generate Preview immediately
                 const previewUrl = await generatePreview(fullPageImg, initialRect);
@@ -86,8 +86,12 @@ export default function CalibratePage() {
     const handleConfirmCredential = async () => {
         if (!imgSrc) return;
 
-        // Save Credential Crop
+        // Save to storage (for the app flow)
         await saveCredentialCrop(cropRect);
+
+        // IMPORTANTE: Guardar como template del usuario (PWA offline)
+        // Esto permite que futuros PDFs usen esta calibración
+        saveUserTemplate(cropRect);
 
         // Generate cropped image for Step 2
         try {
@@ -153,6 +157,11 @@ export default function CalibratePage() {
                                 isStep1 ? "Ajusta el recuadro para cubrir toda la credencial." :
                                     "Mueve el recuadro para marcar donde va la FOTO."}
                         </p>
+                        {isAutoVerifying && confidence < 0.85 && (
+                            <div className="mt-2 text-xs bg-yellow-500/20 border border-yellow-500/50 rounded px-2 py-1 pointer-events-auto">
+                                ⚠️ Confianza: {(confidence * 100).toFixed(0)}% - Recomendamos ajustar manualmente
+                            </div>
+                        )}
                     </div>
 
                 </div>
@@ -202,18 +211,30 @@ export default function CalibratePage() {
                 ) : (
                     <div className="flex flex-col gap-2">
                         {isStep1 && (
-                            <div className="flex gap-2 mb-2">
+                            <div className="flex flex-col gap-2 mb-2">
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setStep("verify_autocrop")}
+                                        className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium"
+                                    >
+                                        Volver
+                                    </button>
+                                    <button
+                                        onClick={() => setCropRect(autoRect)}
+                                        className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium flex-1"
+                                    >
+                                        Restablecer a automático
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => setStep("verify_autocrop")}
-                                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium"
+                                    onClick={() => {
+                                        clearUserTemplate();
+                                        setCropRect(DEFAULT_TEMPLATE);
+                                        alert("✅ Calibración del usuario eliminada. Se usará detección automática.");
+                                    }}
+                                    className="px-4 py-2 bg-red-50 text-red-700 rounded-lg text-xs font-medium"
                                 >
-                                    Volver
-                                </button>
-                                <button
-                                    onClick={() => setCropRect(autoRect)}
-                                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium flex-1"
-                                >
-                                    Restablecer a automático
+                                    🔄 Resetear a fábrica (normalizado)
                                 </button>
                             </div>
                         )}
